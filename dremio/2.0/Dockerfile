@@ -5,6 +5,7 @@ FROM openjdk:8-jdk
 ENV DREMIO_HOME=/opt/dremio \
 	DREMIO_PID_DIR=/var/run/dremio \
         DREMIO_STOP_TIMEOUT=120 \
+	DREMIO_START_TIMEOUT=600 \
         DIST='' \
         COORDINATOR_ENABLED=true \
         COORDINATOR_MASTER_ENABLED=true \
@@ -43,11 +44,17 @@ RUN apt-get update && apt-get install -y \
         && echo "echo \"paths: \" > \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "echo \"{ \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
 	&& echo "echo \"  # the local path for dremio to store data. \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
-	&& echo "echo \"  local: \${LOCAL} \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
-        && echo "echo \"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
-        && echo "echo \"  # the distributed path Dremio data including job results, downloads, uploads, etc \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
-	&& echo "[[ -z \${DIST} ]] && echo \"  #dist: \\\"pdfs://\\\"\\\${paths.local}\\\"/pdfs\\\" \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
-	&& echo "[[ ! -z \${DIST} ]] && echo \"  dist: \${DIST} \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "if [ -z \${DIST} ]; then" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "  echo \"  local: \${LOCAL} \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "  echo \"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "  echo \"  # the distributed path Dremio data including job results, downloads, uploads, etc \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "  echo \"  #dist: \\\"pdfs://\\\"\\\${paths.local}\\\"/pdfs\\\" \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "else" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "  echo \"  #local: \${LOCAL} \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "  echo \"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "  echo \"  # the distributed path Dremio data including job results, downloads, uploads, etc \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "  echo \"  dist: \${DIST} \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "fi" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "echo \"} \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "echo \"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "echo \"services: \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
@@ -66,13 +73,13 @@ RUN apt-get update && apt-get install -y \
 	&& echo "function gracefulShutdown" >> /usr/local/bin/docker-entrypoint.sh \
 	&& echo "{" >> /usr/local/bin/docker-entrypoint.sh \
 	&& echo "  echo Shutting down!" >> /usr/local/bin/docker-entrypoint.sh \
-	&& echo "  timeout ${DREMIO_STOP_TIMEOUT} ${DREMIO_HOME}/bin/dremio stop" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "  timeout \${DREMIO_STOP_TIMEOUT} ${DREMIO_HOME}/bin/dremio stop" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "  kill -9 \`ps -aef | grep 'com.dremio.dac.daemon.DremioDaemon dremio start' | grep -v grep | awk '{print \$2}'\`" >> /usr/local/bin/docker-entrypoint.sh \
 	&& echo "}" >> /usr/local/bin/docker-entrypoint.sh \
 	&& echo "" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "function isAlive" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "{" >> /usr/local/bin/docker-entrypoint.sh \
-        && echo "  timeout 10 \${DREMIO_HOME}/bin/dremio status > /dev/null 2>&1" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "  timeout \${DREMIO_START_TIMEOUT} \${DREMIO_HOME}/bin/dremio status > /dev/null 2>&1" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "  status=\$?" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "  if [ \$status -ne 0 ]; then" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "    echo \"Dremio has exited.\"" >> /usr/local/bin/docker-entrypoint.sh \
@@ -112,6 +119,6 @@ RUN apt-get update && apt-get install -y \
 
 VOLUME ${DREMIO_HOME}
 
-EXPOSE 9047 2181
+EXPOSE 9047 2181 31010
 
 CMD [ "docker-entrypoint.sh" ]
