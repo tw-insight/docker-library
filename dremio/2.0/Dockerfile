@@ -7,14 +7,16 @@ ENV DREMIO_HOME=/opt/dremio \
         DREMIO_STOP_TIMEOUT=120 \
 	DREMIO_START_TIMEOUT=600 \
         DIST='' \
+	ACCELERATOR='' \
+	DOWNLOADS='' \
+	UPLOADS='' \
+	RESULTS='' \
         COORDINATOR_ENABLED=true \
         COORDINATOR_MASTER_ENABLED=true \
         EXECUTOR_ENABLED=true \
         ZOOKEEPER='' \
-        DREMIO_MAX_HEAP_MEMORY_SIZE_MB=8192 \
-        DREMIO_MAX_DIRECT_MEMORY_SIZE_MB=16384 \
-	MASTER_IP='' \
-	MASTER_HOSTNAME=''
+        DREMIO_MAX_HEAP_MEMORY_SIZE_MB=16384 \
+        DREMIO_MAX_DIRECT_MEMORY_SIZE_MB=16384 
 
 ENV DREMIO_CONF_DIR=${DREMIO_HOME}/conf \
 	DREMIO_LOG_DIR=${DREMIO_HOME}/log \
@@ -25,8 +27,8 @@ RUN apt-get update && apt-get install -y \
 	nano \
 	gosu \
 # Add Users/Groups
-        && groupadd -r dremio \
-        && useradd -r -g dremio -d /var/lib/dremio -s /sbin/nologin dremio \
+        && groupadd -r --gid 50006 dremio \
+        && useradd -r --uid 50006 --gid 50006 -d /var/lib/dremio -s /sbin/nologin dremio \
 # Create Directories
 	&& mkdir -p ${DREMIO_HOME} \
 	&& mkdir -p ${DREMIO_LOG_DIR} \
@@ -44,17 +46,34 @@ RUN apt-get update && apt-get install -y \
         && echo "echo \"paths: \" > \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "echo \"{ \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
 	&& echo "echo \"  # the local path for dremio to store data. \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "echo \"  local: \${LOCAL} \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "echo \"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "echo \"  # the distributed path Dremio data including job results, downloads, uploads, etc \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
 	&& echo "if [ -z \${DIST} ]; then" >> /usr/local/bin/docker-entrypoint.sh \
-	&& echo "  echo \"  local: \${LOCAL} \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
-        && echo "  echo \"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
-        && echo "  echo \"  # the distributed path Dremio data including job results, downloads, uploads, etc \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
 	&& echo "  echo \"  #dist: \\\"pdfs://\\\"\\\${paths.local}\\\"/pdfs\\\" \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
 	&& echo "else" >> /usr/local/bin/docker-entrypoint.sh \
-	&& echo "  echo \"  #local: \${LOCAL} \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
-	&& echo "  echo \"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
-	&& echo "  echo \"  # the distributed path Dremio data including job results, downloads, uploads, etc \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
-	&& echo "  echo \"  dist: \${DIST} \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "  echo \"  dist: \\\"pdfs:/\${DIST}/pdfs\\\"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
 	&& echo "fi" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "if [ ! -z \${ACCELERATOR} ]; then" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "  echo \"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+	&& echo "  echo \"  # storage area for the accelerator cache \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "  echo \"  accelerator: \${ACCELERATOR}/accelerator\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "fi" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "if [ ! -z \${DOWNLOADS} ]; then" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "  echo \"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "  echo \"  # staging area for json and csv ui downloads \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "  echo \"  downloads: \${DOWNLOADS}/downloads\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "fi" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "if [ ! -z \${UPLOADS} ]; then" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "  echo \"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "  echo \"  # stores uploaded data associated with user home directories \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "  echo \"  uploads: \${UPLOADS}/uploads \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "fi" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "if [ ! -z \${RESULTS} ]; then" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "  echo \"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "  echo \"  # stores data associated with the job results cache \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "  echo \"  results: \${RESULTS}/results \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
+        && echo "fi" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "echo \"} \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "echo \"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "echo \"services: \" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
@@ -66,8 +85,6 @@ RUN apt-get update && apt-get install -y \
         && echo "echo \"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "[[ ! -z \${ZOOKEEPER} ]] && echo \"zookeeper: \\\"\${ZOOKEEPER}\\\"\" >> \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
 	&& echo "" >> /usr/local/bin/docker-entrypoint.sh \
-        && echo "[[ ! -z \${MASTER_IP} && ! -z \${MASTER_HOSTNAME} ]] && cp /etc/hosts ~/hosts.new && sed -i '/'\"\${MASTER_IP}\"'/d' ~/hosts.new && cp -f ~/hosts.new /etc/hosts && echo \"\${MASTER_IP}      \${MASTER_HOSTNAME}\" >> /etc/hosts" >> /usr/local/bin/docker-entrypoint.sh \
-        && echo "" >> /usr/local/bin/docker-entrypoint.sh \
 	&& echo "chown -h dremio:dremio \${DREMIO_CONF_DIR}/dremio.conf" >> /usr/local/bin/docker-entrypoint.sh \
         && echo "" >> /usr/local/bin/docker-entrypoint.sh \
 	&& echo "function gracefulShutdown" >> /usr/local/bin/docker-entrypoint.sh \
@@ -119,6 +136,6 @@ RUN apt-get update && apt-get install -y \
 
 VOLUME ${DREMIO_HOME}
 
-EXPOSE 9047 2181 31010
+EXPOSE 9047 2181 31010 45678
 
 CMD [ "docker-entrypoint.sh" ]
